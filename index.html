@@ -351,6 +351,14 @@
       });
     }
 
+    // Helper to format Date cleanly to local YYYY-MM-DD format (resolves timezone shifts)
+    function getLocalDateString(date) {
+      const yyyy = date.getFullYear();
+      const mm = String(date.getMonth() + 1).padStart(2, '0');
+      const dd = String(date.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
     // Get Current Week Days (Monday to Sunday)
     function getWeekDays(date) {
       const start = new Date(date);
@@ -464,6 +472,7 @@
       }
     }
 
+    // Display error banner
     function showError(msg) {
       if (msg) {
         errorBannerText.textContent = msg;
@@ -499,7 +508,8 @@
       const weekDays = getWeekDays(currentDate);
 
       weekDays.forEach(day => {
-        const dateStr = day.toISOString().split('T')[0];
+        // Fix: Use getLocalDateString instead of UTC .toISOString() to avoid timezone mismatch
+        const dateStr = getLocalDateString(day);
         const dayBookings = bookings.filter(b => b.date === dateStr);
 
         // Day Lane Structure
@@ -589,8 +599,8 @@
 
     // Form Modals Control Events
     document.getElementById('open-add-modal').addEventListener('click', () => {
-      // Pre-populate with current local date
-      document.getElementById('form-event-date').value = new Date().toISOString().split('T')[0];
+      // Fix: Pre-populate form using getLocalDateString to ensure we don't default to the wrong date
+      document.getElementById('form-event-date').value = getLocalDateString(new Date());
       addModal.classList.remove('hidden');
     });
 
