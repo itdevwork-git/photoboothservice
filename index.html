@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Photobooth Booking Timeline</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    /* Custom Scrollbar for elegant styling */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased">
+
+  <!-- Header Section -->
+  <header class="bg-white border-b border-slate-200 px-6 py-4 sticky top-0 z-20 shadow-sm">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
+      
+      <!-- Logo and Sync Status -->
+      <div class="flex items-center gap-3">
+        <div class="bg-indigo-600 p-2 rounded-lg text-white">
+          <i data-lucide="calendar" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold tracking-tight">Photobooth Dashboard</h1>
+          <div class="text-xs flex items-center gap-1.5 mt-0.5" id="sync-status-container">
+            <span id="sync-icon-wrapper" class="text-green-500">
+              <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
+            </span>
+            <span id="sync-status-text" class="text-slate-500 font-medium">Status: Never Synced</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Navigation & Action Buttons -->
+      <div class="flex items-center gap-2 flex-wrap">
+        
+        <!-- Week Navigator -->
+        <div class="flex items-center bg-slate-100 rounded-lg p-1">
+          <button id="prev-week" class="p-2 hover:bg-white rounded-md transition-all text-slate-600">
+            <i data-lucide="chevron-left" class="w-[18px] h-[18px]"></i>
+          </button>
+          <span id="week-range-text" class="px-4 text-sm font-semibold min-w-[180px] text-center select-none text-slate-700">
+            Loading Date...
+          </span>
+          <button id="next-week" class="p-2 hover:bg-white rounded-md transition-all text-slate-600">
+            <i data-lucide="chevron-right" class="w-[18px] h-[18px]"></i>
+          </button>
+        </div>
+        
+        <!-- Hidden Manual File Upload -->
+        <input type="file" id="file-upload-input" accept=".csv" class="hidden" />
+
+        <!-- Toolbar Buttons -->
+        <div class="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-1 shadow-sm">
+          <button id="sync-sheet-btn" title="Sync Google Sheets" class="p-2 text-slate-600 hover:bg-slate-50 rounded-md transition-all">
+            <i data-lucide="refresh-cw" class="w-[18px] h-[18px]"></i>
+          </button>
+          
+          <div class="w-px h-4 bg-slate-200 mx-1"></div>
+          
+          <button id="upload-csv-btn" title="Upload CSV File" class="p-2 text-slate-600 hover:bg-slate-50 rounded-md transition-all">
+            <i data-lucide="upload" class="w-[18px] h-[18px]"></i>
+          </button>
+          
+          <button id="export-csv-btn" title="Download CSV" class="p-2 text-slate-600 hover:bg-slate-50 rounded-md transition-all">
+            <i data-lucide="download" class="w-[18px] h-[18px]"></i>
+          </button>
+        </div>
+        
+        <!-- Add Booking Trigger -->
+        <button id="open-add-modal" class="bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100">
+          <i data-lucide="plus" class="w-5 h-5"></i>
+          <span class="hidden sm:inline">Add Booking</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Canvas Section -->
+  <main class="max-w-7xl mx-auto p-4 md:p-6">
+    
+    <!-- Setup Alert Flag -->
+    <div id="setup-warning" class="hidden mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 text-amber-800 text-sm">
+      <i data-lucide="info" class="w-5 h-5 text-amber-500 flex-shrink-0"></i>
+      <p><strong>Config Required:</strong> Add your Google Sheets Published CSV link to <code>GOOGLE_SHEET_CSV_URL</code> inside the scripts to enable live data mapping.</p>
+    </div>
+
+    <!-- Error Toast Message -->
+    <div id="error-banner" class="hidden mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between text-red-800 text-sm animate-fade-in">
+      <div class="flex items-center gap-3">
+        <i data-lucide="alert-circle" class="w-5 h-5 text-red-500 flex-shrink-0"></i>
+        <p id="error-banner-text">An error occurred.</p>
+      </div>
+      <button id="close-error-banner" class="text-slate-400 hover:text-slate-600">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+
+    <!-- Timeline Wrapper -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
+      <div class="min-w-[950px]" id="timeline-container">
+        
+        <!-- Timeline Header (Hour Tickmarks) -->
+        <div class="flex border-b border-slate-100 bg-slate-50/50" id="hours-header-row">
+          <div class="w-32 flex-shrink-0 p-4 font-bold text-slate-400 text-xs uppercase tracking-wider border-r border-slate-100">Day</div>
+          <div class="flex-grow flex relative h-12" id="hours-header-container">
+            <!-- Rendered dynamically by Javascript -->
+          </div>
+        </div>
+
+        <!-- Timeline Lanes (Days of Current Week) -->
+        <div class="divide-y divide-slate-100" id="lanes-container">
+          <!-- Rendered dynamically by Javascript -->
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <!-- Details View Modal -->
+  <div id="details-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all border border-slate-200">
+      <div class="bg-indigo-600 p-6 text-white">
+        <div class="flex justify-between items-start mb-2">
+          <h3 id="details-client-name" class="text-xl font-bold">Client Name</h3>
+          <button id="close-details-btn" class="p-1 hover:bg-indigo-500 rounded-lg transition-colors">
+            <i data-lucide="x" class="w-6 h-6"></i>
+          </button>
+        </div>
+        <div class="flex items-center gap-2 text-indigo-100 text-xs font-medium uppercase tracking-wider">
+          <i data-lucide="calendar" class="w-3.5 h-3.5"></i> <span id="details-date">YYYY-MM-DD</span>
+        </div>
+      </div>
+
+      <div class="p-6 space-y-6">
+        <!-- Timings (Setup & Event) -->
+        <div class="grid grid-cols-2 gap-4">
+          <div class="space-y-1">
+             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Setup Time</p>
+             <div class="flex items-center gap-2 text-slate-700">
+               <i data-lucide="clock" class="w-4 h-4 text-indigo-400"></i>
+               <span id="details-setup-time" class="font-semibold text-sm">--:--</span>
+             </div>
+          </div>
+          <div class="space-y-1">
+             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Event Hours</p>
+             <div class="flex items-center gap-2 text-slate-700">
+               <i data-lucide="clock" class="w-4 h-4 text-emerald-400"></i>
+               <span id="details-event-time" class="font-semibold text-sm">--:-- to --:--</span>
+             </div>
+          </div>
+        </div>
+
+        <!-- Package Specifications -->
+        <div class="border-t border-slate-100 pt-4">
+          <div class="flex items-start gap-3">
+            <div class="p-2 bg-slate-50 rounded-lg text-slate-400">
+              <i data-lucide="package" class="w-[18px] h-[18px]"></i>
+            </div>
+            <div class="flex-grow">
+              <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Package & Gear</p>
+              <p id="details-package-name" class="text-sm font-bold text-slate-700">Package Details</p>
+              <p id="details-equipment-list" class="text-xs text-slate-500 mt-1 leading-relaxed bg-slate-50 p-2 rounded border border-slate-100">Equipment components...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Contacts and Financial Metadata -->
+        <div class="grid grid-cols-2 gap-4 border-t border-slate-100 pt-4">
+          <div>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Contact</p>
+            <div class="flex items-center gap-2 text-sm text-slate-700 font-medium">
+              <i data-lucide="user" class="w-3.5 h-3.5 text-slate-400"></i> <span id="details-contact-info">N/A</span>
+            </div>
+          </div>
+          <div>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Receivables</p>
+            <div class="flex items-center gap-1 text-sm font-bold text-emerald-600">
+              <i data-lucide="dollar-sign" class="w-3.5 h-3.5"></i> <span id="details-receivables-amount">0.00</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="bg-slate-50 p-4 flex justify-end">
+         <button id="close-details-footer" class="text-sm font-bold text-slate-500 hover:text-slate-700 transition-colors">
+           Close Details
+         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Booking Entry Creation Modal -->
+  <div id="add-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col">
+      <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+        <h2 class="text-xl font-bold flex items-center gap-2 text-slate-800">
+          <i data-lucide="plus" class="text-indigo-600 w-6 h-6"></i> New Booking Entry
+        </h2>
+        <button id="close-add-modal-btn" class="text-slate-400 hover:text-slate-600">
+          <i data-lucide="x" class="w-6 h-6"></i>
+        </button>
+      </div>
+      
+      <form id="add-booking-form" class="p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Column 1 -->
+        <div class="space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Client Name</label>
+            <input required type="text" id="form-client-name" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20" placeholder="Sarah & John Wedding" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Event Date</label>
+            <input required type="date" id="form-event-date" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20" />
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Setup Time</label>
+              <input required type="time" id="form-setup-time" value="08:00" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Event Start</label>
+              <input required type="time" id="form-start-time" value="10:00" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20" />
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Event End</label>
+            <input required type="time" id="form-end-time" value="14:00" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20" />
+          </div>
+        </div>
+
+        <!-- Column 2 -->
+        <div class="space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Package</label>
+            <input type="text" id="form-package" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20" placeholder="e.g. Premium 4hrs" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Equipment Needed</label>
+            <textarea rows="2" id="form-equipment" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20" placeholder="Backdrop, props, DSLR kit"></textarea>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Receivables</label>
+            <input type="text" id="form-receivables" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20" placeholder="$0.00" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Contact Details</label>
+            <input type="text" id="form-contact" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20" placeholder="Email / Phone" />
+          </div>
+        </div>
+
+        <div class="md:col-span-2 pt-4 flex gap-3">
+          <button type="submit" class="flex-grow bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100">
+            Save Local Booking
+          </button>
+          <button type="button" id="cancel-add-modal" class="px-6 py-3 border border-slate-200 text-slate-500 rounded-xl font-semibold hover:bg-slate-50 transition-all">
+            Discard
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Functional Scripts -->
+  <script>
+    // GOOGLE SHEETS LIVE CONFIGURATION
+    // Change this URL to your Published CSV web link
+    const GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSKQEzyWV7KOZcrSu_moBtc22XKyekoTLo22hv-wx9w_THn4OSFeBdGn34bYOoj6xmMJGZ7XEo4RjEV/pub?output=csv";
+
+    // Application State
+    let currentDate = new Date();
+    let bookings = [];
+
+    // DOM Selectors
+    const weekRangeText = document.getElementById('week-range-text');
+    const lanesContainer = document.getElementById('lanes-container');
+    const hoursHeaderContainer = document.getElementById('hours-header-container');
+    const setupWarning = document.getElementById('setup-warning');
+    const errorBanner = document.getElementById('error-banner');
+    const errorBannerText = document.getElementById('error-banner-text');
+    const closeErrorBannerBtn = document.getElementById('close-error-banner');
+    const fileUploadInput = document.getElementById('file-upload-input');
+    const syncStatusText = document.getElementById('sync-status-text');
+    const syncIconWrapper = document.getElementById('sync-icon-wrapper');
+
+    // Modals DOM
+    const detailsModal = document.getElementById('details-modal');
+    const addModal = document.getElementById('add-modal');
+    const addBookingForm = document.getElementById('add-booking-form');
+
+    // Active Modal Detail Selectors
+    const detClientName = document.getElementById('details-client-name');
+    const detDate = document.getElementById('details-date');
+    const detSetupTime = document.getElementById('details-setup-time');
+    const detEventTime = document.getElementById('details-event-time');
+    const detPackageName = document.getElementById('details-package-name');
+    const detEquipmentList = document.getElementById('details-equipment-list');
+    const detContactInfo = document.getElementById('details-contact-info');
+    const detReceivablesAmount = document.getElementById('details-receivables-amount');
+
+    // Hour Range setup (8 AM to 12 AM)
+    const HOURS = Array.from({ length: 17 }, (_, i) => i + 8);
+
+    // Initializer
+    window.onload = function() {
+      // Setup timeline hour grid headers
+      renderTimelineHeaders();
+      
+      // Update warning if URL is blank
+      if (!GOOGLE_SHEET_CSV_URL) {
+        setupWarning.classList.remove('hidden');
+      }
+
+      // Sync data
+      fetchGoogleSheetData();
+      
+      // Initial render elements
+      updateWeekRange();
+      renderTimelineLanes();
+      
+      // Apply lucide icon rendering
+      lucide.createIcons();
+    };
+
+    // Render static grid headers
+    function renderTimelineHeaders() {
+      hoursHeaderContainer.innerHTML = '';
+      HOURS.forEach(hour => {
+        const hourDiv = document.createElement('div');
+        hourDiv.className = "flex-grow border-l border-slate-200 text-[10px] text-slate-400 pt-3 pl-1.5 font-semibold";
+        const displayLabel = hour > 12 ? `${hour - 12}PM` : hour === 12 ? '12PM' : `${hour}AM`;
+        hourDiv.textContent = displayLabel;
+        hoursHeaderContainer.appendChild(hourDiv);
+      });
+    }
+
+    // Get Current Week Days (Monday to Sunday)
+    function getWeekDays(date) {
+      const start = new Date(date);
+      const day = start.getDay();
+      const diff = start.getDate() - day + (day === 0 ? -6 : 1); // Monday calculation
+      const monday = new Date(start.setDate(diff));
+      
+      return Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(monday);
+        d.setDate(monday.getDate() + i);
+        return d;
+      });
+    }
+
+    // Navigation Updates
+    function updateWeekRange() {
+      const weekDays = getWeekDays(currentDate);
+      const firstDay = weekDays[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const lastDay = weekDays[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      weekRangeText.textContent = `${firstDay} - ${lastDay}`;
+    }
+
+    // Navigation Controls
+    document.getElementById('prev-week').addEventListener('click', () => {
+      currentDate.setDate(currentDate.getDate() - 7);
+      updateWeekRange();
+      renderTimelineLanes();
+    });
+
+    document.getElementById('next-week').addEventListener('click', () => {
+      currentDate.setDate(currentDate.getDate() + 7);
+      updateWeekRange();
+      renderTimelineLanes();
+    });
+
+    // Core CSV String Parser
+    function parseCSV(text) {
+      const rows = text.split('\n').filter(row => row.trim() !== '');
+      if (rows.length <= 1) return [];
+
+      return rows.slice(1).map(row => {
+        // Splitting logic keeping quoted fields unified
+        const cols = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
+        const clean = cols.map(c => c.replace(/^"|"$/g, '').trim());
+
+        if (clean.length < 3) return null;
+        
+        return {
+          id: clean[0] || Math.random().toString(36).substr(2, 9),
+          clientName: String(clean[1] || 'Unknown'),
+          date: String(clean[2] || ''), 
+          setupTime: String(clean[3] || '08:00'),
+          startTime: String(clean[4] || '10:00'),
+          endTime: String(clean[5] || '12:00'),
+          package: String(clean[6] || ''),
+          equipment: String(clean[7] || '').replace(/;/g, ','),
+          receivables: String(clean[8] || ''),
+          contact: String(clean[9] || ''),
+          status: 'Synced'
+        };
+      }).filter(Boolean);
+    }
+
+    // Fetch Sheets Data via CORS GET request
+    async function fetchGoogleSheetData() {
+      if (!GOOGLE_SHEET_CSV_URL) {
+        showError("Google Sheet URL is not configured. File syncing disabled.");
+        return;
+      }
+
+      setLoading(true);
+      setErrorState(null);
+      
+      try {
+        const response = await fetch(GOOGLE_SHEET_CSV_URL);
+        if (!response.ok) throw new Error("Could not access public Sheet file");
+        const text = await response.text();
+        const parsed = parseCSV(text);
+        
+        bookings = parsed;
+        setSyncStatus(`Synced: ${new Date().toLocaleTimeString()}`, 'success');
+        renderTimelineLanes();
+      } catch (err) {
+        showError("Unable to fetch sheet data. Check publish settings.");
+        setSyncStatus("Failed", 'error');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    // Set interactive visual states
+    function setLoading(isLoading) {
+      const refreshBtn = document.getElementById('sync-sheet-btn');
+      if (isLoading) {
+        refreshBtn.classList.add('opacity-50', 'pointer-events-none');
+        syncIconWrapper.innerHTML = `<i data-lucide="refresh-cw" class="w-3.5 h-3.5 animate-spin"></i>`;
+      } else {
+        refreshBtn.classList.remove('opacity-50', 'pointer-events-none');
+        syncIconWrapper.innerHTML = `<i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>`;
+      }
+      lucide.createIcons();
+    }
+
+    function setSyncStatus(text, type) {
+      syncStatusText.textContent = text;
+      if (type === 'error') {
+        syncIconWrapper.className = 'text-red-500';
+      } else {
+        syncIconWrapper.className = 'text-green-500';
+      }
+    }
+
+    function showError(msg) {
+      if (msg) {
+        errorBannerText.textContent = msg;
+        errorBanner.classList.remove('hidden');
+      } else {
+        errorBanner.classList.add('hidden');
+      }
+    }
+
+    function setErrorState(val) {
+      showError(val);
+    }
+
+    closeErrorBannerBtn.addEventListener('click', () => {
+      errorBanner.classList.add('hidden');
+    });
+
+    // Time to visual grid percent conversion logic
+    function calculatePosition(timeStr) {
+      if (!timeStr || typeof timeStr !== 'string') return 0;
+      const parts = timeStr.split(':');
+      if (parts.length < 2) return 0;
+      const hours = parseInt(parts[0], 10);
+      const minutes = parseInt(parts[1], 10);
+      const totalMinutesSince8AM = (hours - 8) * 60 + (minutes || 0);
+      const totalPossibleMinutes = (24 - 8) * 60;
+      return Math.max(0, Math.min(100, (totalMinutesSince8AM / totalPossibleMinutes) * 100));
+    }
+
+    // Layout Lanes rendering loop
+    function renderTimelineLanes() {
+      lanesContainer.innerHTML = '';
+      const weekDays = getWeekDays(currentDate);
+
+      weekDays.forEach(day => {
+        const dateStr = day.toISOString().split('T')[0];
+        const dayBookings = bookings.filter(b => b.date === dateStr);
+
+        // Day Lane Structure
+        const laneElement = document.createElement('div');
+        laneElement.className = "flex min-h-[100px] group hover:bg-slate-50/30 transition-colors";
+
+        // Day label left metadata panel
+        const metadataDiv = document.createElement('div');
+        metadataDiv.className = "w-32 flex-shrink-0 p-4 border-r border-slate-100 flex flex-col justify-center bg-slate-50/20";
+        metadataDiv.innerHTML = `
+          <span class="text-sm font-bold text-slate-700">${day.toLocaleDateString('en-US', { weekday: 'short' })}</span>
+          <span class="text-xs text-slate-400 font-medium">${day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+        `;
+        laneElement.appendChild(metadataDiv);
+
+        // Grid Area for Cards
+        const gridArea = document.createElement('div');
+        gridArea.className = "flex-grow relative";
+
+        // Background Guide Lines
+        const guideLinesContainer = document.createElement('div');
+        guideLinesContainer.className = "absolute inset-0 flex pointer-events-none";
+        HOURS.forEach(() => {
+          const guideLine = document.createElement('div');
+          guideLine.className = "flex-grow border-l border-slate-100/50 h-full";
+          guideLinesContainer.appendChild(guideLine);
+        });
+        gridArea.appendChild(guideLinesContainer);
+
+        // Cards Container Wrapper
+        const cardsWrapper = document.createElement('div');
+        cardsWrapper.className = "relative p-3 h-full flex flex-col gap-2";
+
+        dayBookings.forEach(booking => {
+          // Dynamic Layout Coordinates
+          const startPos = calculatePosition(booking.startTime);
+          const endPos = calculatePosition(booking.endTime);
+          const width = Math.max(endPos - startPos, 8); // Prevent card collapse
+
+          const card = document.createElement('div');
+          card.className = "relative h-14 rounded-lg shadow-sm border border-emerald-200 bg-emerald-50 cursor-pointer transition-all hover:ring-2 hover:ring-indigo-400/50 group/card z-10 p-2 select-none";
+          card.style.left = `${startPos}%`;
+          card.style.width = `${width}%`;
+
+          card.innerHTML = `
+            <div class="flex flex-col justify-center h-full">
+              <span class="text-xs font-bold truncate text-emerald-900">${booking.clientName}</span>
+              <span class="text-[10px] text-emerald-700/80 font-medium truncate">${booking.startTime} - ${booking.endTime}</span>
+            </div>
+          `;
+
+          // Event Listener for detailed layout preview
+          card.addEventListener('click', () => {
+            showBookingDetails(booking);
+          });
+
+          cardsWrapper.appendChild(card);
+        });
+
+        gridArea.appendChild(cardsWrapper);
+        laneElement.appendChild(gridArea);
+        lanesContainer.appendChild(laneElement);
+      });
+    }
+
+    // Details Modal Controller
+    function showBookingDetails(booking) {
+      detClientName.textContent = booking.clientName;
+      detDate.textContent = booking.date;
+      detSetupTime.textContent = booking.setupTime;
+      detEventTime.textContent = `${booking.startTime} to ${booking.endTime}`;
+      detPackageName.textContent = booking.package || "Custom Package";
+      detEquipmentList.textContent = booking.equipment || "No equipment specified.";
+      detContactInfo.textContent = booking.contact || "None";
+      detReceivablesAmount.textContent = booking.receivables || "0.00";
+
+      detailsModal.classList.remove('hidden');
+    }
+
+    // Modal Events (Close actions)
+    document.getElementById('close-details-btn').addEventListener('click', () => {
+      detailsModal.classList.add('hidden');
+    });
+    document.getElementById('close-details-footer').addEventListener('click', () => {
+      detailsModal.classList.add('hidden');
+    });
+
+    // Form Modals Control Events
+    document.getElementById('open-add-modal').addEventListener('click', () => {
+      // Pre-populate with current local date
+      document.getElementById('form-event-date').value = new Date().toISOString().split('T')[0];
+      addModal.classList.remove('hidden');
+    });
+
+    const hideAddModal = () => {
+      addModal.classList.add('hidden');
+      addBookingForm.reset();
+    };
+
+    document.getElementById('close-add-modal-btn').addEventListener('click', hideAddModal);
+    document.getElementById('cancel-add-modal').addEventListener('click', hideAddModal);
+
+    // Form Submission Handler
+    addBookingForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      
+      const newBooking = {
+        id: Math.random().toString(36).substr(2, 9),
+        clientName: document.getElementById('form-client-name').value,
+        date: document.getElementById('form-event-date').value,
+        setupTime: document.getElementById('form-setup-time').value,
+        startTime: document.getElementById('form-start-time').value,
+        endTime: document.getElementById('form-end-time').value,
+        package: document.getElementById('form-package').value,
+        equipment: document.getElementById('form-equipment').value,
+        receivables: document.getElementById('form-receivables').value,
+        contact: document.getElementById('form-contact').value,
+        status: 'Local'
+      };
+
+      bookings.push(newBooking);
+      setSyncStatus(`Created Local Booking`, 'success');
+      hideAddModal();
+      renderTimelineLanes();
+    });
+
+    // Toolbar Event Bindings
+    document.getElementById('sync-sheet-btn').addEventListener('click', fetchGoogleSheetData);
+
+    // Upload Triggers
+    document.getElementById('upload-csv-btn').addEventListener('click', () => {
+      fileUploadInput.click();
+    });
+
+    fileUploadInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const text = event.target.result;
+          const imported = parseCSV(text);
+          if (imported.length > 0) {
+            bookings = [...bookings, ...imported];
+            setSyncStatus(`Uploaded ${imported.length} rows`, 'success');
+            showError(null);
+            renderTimelineLanes();
+          } else {
+            showError("No valid booking data found in the selected CSV.");
+          }
+        } catch (err) {
+          showError("Failed to parse local CSV file.");
+        }
+      };
+      reader.readAsText(file);
+      e.target.value = null; // reset
+    });
+
+    // CSV Download Export Trigger
+    document.getElementById('export-csv-btn').addEventListener('click', () => {
+      const headers = ["Booking_ID", "Client", "Date", "Setup_Start", "Event_Start", "Event_End", "Package", "Equipment", "Receivables", "Contact"];
+      const rows = bookings.map(b => [
+        b.id, b.clientName, b.date, b.setupTime, b.startTime, b.endTime, b.package, (b.equipment || '').replace(/,/g, ';'), b.receivables, b.contact
+      ]);
+      const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+      
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `bookings_export_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    });
+  </script>
+<link rel="stylesheet" href="style.css">
+<script src="script.js"></script>
+
+</body>
+</html>
